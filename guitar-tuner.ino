@@ -1,9 +1,18 @@
+// #include <LiquidCrystal.h>
+
 #define MIC A0
+// #define RS 12
+// #define E 11
+// #define D4 9
 
 int sig = 0;
+// LiquidCrystal lcd(RS, E, D4, 0, 1, 13);
 
 void setup()
 {
+  // lcd.begin(16, 2);
+  // lcd.print("hello, world!");
+
   pinMode(2,OUTPUT);
   pinMode(3,OUTPUT);
   pinMode(4,OUTPUT);
@@ -29,11 +38,11 @@ void led() {
     digitalWrite(2, LOW);
   }
 
-if (sig > 2000) {
-  digitalWrite(3, HIGH);
-} else {
-  digitalWrite(3, LOW);
-}
+  if (sig > 2000) {
+    digitalWrite(3, HIGH);
+  } else {
+    digitalWrite(3, LOW);
+  }
 
   if (sig > 3000) {
     digitalWrite(4, HIGH);
@@ -64,4 +73,7 @@ if (sig > 2000) {
 
 void loop() {
   led();
+  // lcd.setCursor(0, 1);
+  // lcd.print(millis() / 1000);
+  // delay(1000);
 }
