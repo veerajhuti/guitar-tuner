@@ -1,79 +1,94 @@
-// #include <LiquidCrystal.h>
+#include <arduinoFFT.h>
 
 #define MIC A0
-// #define RS 12
-// #define E 11
-// #define D4 9
+#define SAMPLES 128
+#define SAMPLING_FREQUENCY 5000
 
-int sig = 0;
-// LiquidCrystal lcd(RS, E, D4, 0, 1, 13);
 
-void setup()
-{
-  // lcd.begin(16, 2);
-  // lcd.print("hello, world!");
+int data[128];
+const float guitar_frequencies[] = {82.41, 110.00, 146.83, 196.00, 246.94, 329.63}; // E2, A2, D3, G3, B3, E4
+double real[128];
+double imaginary[128];
+unsigned int period;
+unsigned long microseconds;
 
-  pinMode(2,OUTPUT);
-  pinMode(3,OUTPUT);
-  pinMode(4,OUTPUT);
-  pinMode(5,OUTPUT);
-  pinMode(6,OUTPUT);
-  pinMode(7,OUTPUT);
-  pinMode(8,OUTPUT);
-  digitalWrite(2, LOW);
-  digitalWrite(3, LOW);
-  digitalWrite(4, LOW);
-  digitalWrite(5, LOW);
-  digitalWrite(6, LOW);
-  digitalWrite(7, LOW);
-  digitalWrite(8, LOW);
+ArduinoFFT<double> FFT = ArduinoFFT<double>(real, imaginary, SAMPLES, 40);
+
+
+int getPeakFrequency(double* vReal, int samples) {
+  int peakIndex = 0;
+  float maxMagnitude = 0;
+
+  for (int i = 1; i < samples / 2; ++i) {
+    if (vReal[i] > maxMagnitude) {
+      maxMagnitude = vReal[i];
+      peakIndex = i;
+    }
+  }
+  return peakIndex;
 }
 
-void led() {
-  sig = analogRead(MIC)*50;
+void setup() {
+  Serial.begin(115200);
 
-  if (sig > 1000)  {
-    digitalWrite(2, HIGH);
-  } else {
-    digitalWrite(2, LOW);
-  }
+  period = round(1000000*(1.0/SAMPLING_FREQUENCY));
 
-  if (sig > 2000) {
-    digitalWrite(3, HIGH);
-  } else {
-    digitalWrite(3, LOW);
-  }
-
-  if (sig > 3000) {
-    digitalWrite(4, HIGH);
-  } else {
-    digitalWrite(4, LOW);
-  }
-  if (sig > 4000) {
-    digitalWrite(5, HIGH);
-  } else {
-    digitalWrite(5, LOW);
-  }
-  if (sig > 5000) {
-    digitalWrite(6, HIGH);
-  } else {
-    digitalWrite(6, LOW);
-  }
-  if (sig > 6000) {
-    digitalWrite(7, HIGH);
-  } else {
-    digitalWrite(7, LOW);
-  }
-  if (sig > 7000) {
-    digitalWrite(8, HIGH);
-  } else {
-    digitalWrite(8, LOW);
+  pinMode(MIC, INPUT);
+  
+  for (int pin = 2; pin <= 8; pin++) {
+    pinMode(pin, OUTPUT);
+    digitalWrite(pin, LOW);
   }
 }
 
 void loop() {
-  led();
-  // lcd.setCursor(0, 1);
-  // lcd.print(millis() / 1000);
-  // delay(1000);
+  for (int i = 0; i < SAMPLES; ++i) {
+    microseconds = micros();
+    real[i] = analogRead(MIC);
+    imaginary[i] = 0;
+  
+    while(micros() < (microseconds + (1000000 / SAMPLING_FREQUENCY))) {
+    } // delay
+  }
+
+  FFT.windowing(real, SAMPLES, FFT_WIN_TYP_HAMMING, FFT_FORWARD); 
+  FFT.compute(real, imaginary, SAMPLES, FFT_FORWARD);
+  FFT.complexToMagnitude(real, imaginary, SAMPLES);
+
+  int peakIndex = getPeakFrequency(real, SAMPLES);
+  float peakFrequency = peakIndex * (SAMPLING_FREQUENCY / SAMPLES);
+
+  Serial.print("Peak Frequency: ");
+  Serial.println(peakFrequency);
+
+  int closestString = -1;
+  float minDiff = 9999;
+
+  for (int i = 0; i < 6; ++i) {
+  float diff = abs(guitar_frequencies[i] - peakFrequency);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closestString = i;
+    }
+  }
+  
+  for (int i = 0; i < 6; ++i) {
+    if (i == closestString) {
+      if (minDiff < 3) {
+        digitalWrite(i + 2, HIGH);
+      } else {
+        digitalWrite(8, HIGH);
+        digitalWrite(i + 2, LOW);
+      }
+    } else {
+      digitalWrite(i+2, LOW);
+    }
+  }
+  // delay(100);  // Delay to avoid overwhelming the serial monitor
+
+  if (closestString == -1 || minDiff > 5) {
+    digitalWrite(8, HIGH);
+  } else {
+    digitalWrite(8, LOW);   // Turn off middle LED if the closest string is tuned
+  }
 }
